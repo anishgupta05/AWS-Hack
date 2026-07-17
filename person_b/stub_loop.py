@@ -59,8 +59,11 @@ async def _gated_model_switch(gate: PomeriumGate, reason: str) -> bool:
 
 
 async def _gated_zero_enrich(gate: PomeriumGate, zero: ZeroClient, task_description: str) -> dict:
-    """Returns a dict shaped like {"chosen": {...}} regardless of whether
-    it went through the proxy or the in-process fallback."""
+    """Returns a dict shaped like {"chosen": {...}, "steps": [...]}
+    regardless of whether it went through the proxy or the in-process
+    fallback. `steps` is a human-readable log of every real thing that
+    happened (search, ranking, self-heal retries, payment) -- see
+    zero_client.py's discover()/select_and_pay() `steps` parameter."""
     try:
         result = await pomerium_client.call_action("/actions/zero_enrich", {"task_description": task_description})
         logger.info("zero_enrich routed through real Pomerium proxy")
@@ -69,8 +72,9 @@ async def _gated_zero_enrich(gate: PomeriumGate, zero: ZeroClient, task_descript
         raise PermissionError(f"pomerium denied zero_enrich: {exc}") from exc
     except pomerium_client.PomeriumProxyUnavailable as exc:
         logger.warning("%s -- falling back to in-process Zero call (NOT network-gated)", exc)
-        listings = await zero.discover(task_description)
-        chosen = await zero.select_and_pay(listings)
+        steps: list[str] = []
+        listings = await zero.discover(task_description, steps=steps)
+        chosen = await zero.select_and_pay(listings, steps=steps)
         return {
             "chosen": {
                 "service_id": chosen.service_id,
@@ -78,7 +82,8 @@ async def _gated_zero_enrich(gate: PomeriumGate, zero: ZeroClient, task_descript
                 "price_usd": chosen.price_usd,
                 "fit_score": chosen.fit_score,
                 "availability": chosen.availability,
-            }
+            },
+            "steps": steps,
         }
 
 
@@ -126,6 +131,16 @@ async def run_stub_loop(gate: PomeriumGate, zero: ZeroClient, delay: float = 1.5
 
             result = await _gated_zero_enrich(gate, zero, "cardiac clinical enrichment tabular")
             chosen = result["chosen"]
+
+            for step in result.get("steps", []):
+                yield LoopEvent(
+                    iteration=iteration, phase=Phase.GATE, data_sources=list(sources),
+                    model_class=model, accuracy=accuracy, diagnosis=diagnosis,
+                    action={"type": "zero_step"},
+                    message=step,
+                )
+                await asyncio.sleep(0.4)
+
             # Deliberately NOT appended to `sources` -- that list feeds the
             # dashboard's "data sources pulled" chips, and Zero's data is
             # never actually merged into training, so it must not appear

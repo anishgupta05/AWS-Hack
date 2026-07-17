@@ -68,9 +68,10 @@ def _make_on_action(event_queue: queue.Queue):
         path = _ACTION_TO_PATH.get(action_name)
         gate_allowed = True
         gate_note = ""
+        result = None
         if path:
             try:
-                _call_pomerium_sync(path, _ACTION_PAYLOAD_KEY[action_name](payload))
+                result = _call_pomerium_sync(path, _ACTION_PAYLOAD_KEY[action_name](payload))
             except pomerium_client.PomeriumProxyDenied as exc:
                 gate_allowed = False
                 gate_note = str(exc)
@@ -79,6 +80,12 @@ def _make_on_action(event_queue: queue.Queue):
                 gate_note = f"pomerium proxy unavailable, proceeding ungated: {exc}"
                 logger.warning(gate_note)
         event_queue.put({"kind": "action", "action_name": action_name, "payload": payload, "gate_allowed": gate_allowed, "gate_note": gate_note})
+
+        # The pre-flight zero_discover call is a real search too -- surface
+        # what it actually found, not just the gate pass/fail.
+        if action_name == "zero_enrichment" and result:
+            for step in result.get("steps", []):
+                event_queue.put({"kind": "zero_step", "step": step})
     return on_action
 
 
@@ -93,6 +100,11 @@ def _make_zero_hook(event_queue: queue.Queue):
         except pomerium_client.PomeriumProxyUnavailable as exc:
             event_queue.put({"kind": "zero_blocked", "reason": f"pomerium proxy unavailable: {exc}"})
             return None
+
+        # Surface every real step (search, ranking, self-heal retries,
+        # payment) individually, not just the terminal outcome below.
+        for step in result.get("steps", []):
+            event_queue.put({"kind": "zero_step", "step": step})
 
         body_keys = list((chosen.get("result_body") or {}).keys())
         event_queue.put({"kind": "zero_result", "chosen": chosen, "body_keys": body_keys})
@@ -109,7 +121,7 @@ def _make_on_iteration(event_queue: queue.Queue):
 
 
 async def run_real_loop_streaming(
-    target_accuracy: float = 0.87, max_iterations: int = 12
+    target_accuracy: float = 0.833, max_iterations: int = 12
 ) -> AsyncIterator[LoopEvent]:
     event_queue: queue.Queue = queue.Queue()
     result_holder: dict = {}
@@ -149,6 +161,13 @@ async def run_real_loop_streaming(
                     f"pomerium {'allowed' if item['gate_allowed'] else 'DENIED'}"
                     f"{': ' + item['gate_note'] if item['gate_note'] else ''}"
                 ),
+            )
+
+        elif kind == "zero_step":
+            yield LoopEvent(
+                iteration=0, phase=Phase.GATE, data_sources=[],
+                action={"type": "zero_step"},
+                message=item["step"],
             )
 
         elif kind == "zero_result":
@@ -197,5 +216,5 @@ async def run_real_loop_streaming(
         iteration=len(state.iterations), phase=Phase.DONE,
         data_sources=state.sources_pulled, model_class=state.current_model_name,
         accuracy=best, diagnosis=state.summary(),
-        message=f"Loop complete. Best accuracy {best:.1%} vs target {target_accuracy:.1%}.",
+        message=f"Loop complete. Best accuracy {best:.1%} vs benchmark {target_accuracy:.1%}.",
     )

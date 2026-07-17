@@ -63,15 +63,21 @@ async def pull_data(req: PullDataRequest):
 
 @app.post("/actions/zero_discover")
 async def zero_discover(req: ZeroTaskRequest):
-    listings = await _zero.discover(req.task_description)
-    return {"listings": [_listing_dict(listing) for listing in listings]}
+    steps: list[str] = []
+    listings = await _zero.discover(req.task_description, steps=steps)
+    return {"listings": [_listing_dict(listing) for listing in listings], "steps": steps}
 
 
 @app.post("/actions/zero_enrich")
 async def zero_enrich(req: ZeroTaskRequest):
-    listings = await _zero.discover(req.task_description)
-    chosen = await _zero.select_and_pay(listings)
-    return {"chosen": _listing_dict(chosen)}
+    # steps collects a human-readable description of every real thing that
+    # happens across both calls (search, ranking, any self-heal retries,
+    # the actual payment) -- without this, only the terminal outcome would
+    # ever cross the HTTP boundary back to the dashboard.
+    steps: list[str] = []
+    listings = await _zero.discover(req.task_description, steps=steps)
+    chosen = await _zero.select_and_pay(listings, steps=steps)
+    return {"chosen": _listing_dict(chosen), "steps": steps}
 
 
 @app.post("/actions/model_switch")
