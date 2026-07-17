@@ -1,0 +1,62 @@
+# Real Pomerium route/policy config for this project's action allowlist.
+#
+# This is not a stand-in -- it's run by the actual `pomerium` binary
+# (via Docker) as a reverse proxy in front of person_b/actions_service.py.
+# Every autonomous action the agent takes is an HTTP call that must pass
+# through this proxy first.
+#
+# `insecure_server: true` and `allow_public_unauthenticated_access: true`
+# are deliberate for this project: there's no human logging in (this is a
+# machine agent, not a browser session), so Pomerium's usual
+# identity-provider-backed login flow doesn't apply. What Pomerium DOES
+# enforce for real here is routing: each action type is its own route with
+# its own `http_path` policy criterion. Any action type that isn't one of
+# these routes has nowhere to go -- there's no catch-all route to fall
+# through to, so an unlisted action is rejected by Pomerium's routing
+# layer itself, not by an app-level if-statement pretending to be a gate.
+
+insecure_server: true
+address: :9080
+grpc_address: :9081
+grpc_insecure: true
+
+routes:
+  - from: http://gate.localhost.pomerium.io
+    to: http://host.docker.internal:9100
+    prefix: /actions/pull_data
+    allow_public_unauthenticated_access: true
+    policy:
+      - allow:
+          or:
+            - http_path:
+                is: /actions/pull_data
+
+  - from: http://gate.localhost.pomerium.io
+    to: http://host.docker.internal:9100
+    prefix: /actions/zero_discover
+    allow_public_unauthenticated_access: true
+    policy:
+      - allow:
+          or:
+            - http_path:
+                is: /actions/zero_discover
+
+  - from: http://gate.localhost.pomerium.io
+    to: http://host.docker.internal:9100
+    prefix: /actions/zero_enrich
+    allow_public_unauthenticated_access: true
+    policy:
+      - allow:
+          or:
+            - http_path:
+                is: /actions/zero_enrich
+
+  - from: http://gate.localhost.pomerium.io
+    to: http://host.docker.internal:9100
+    prefix: /actions/model_switch
+    allow_public_unauthenticated_access: true
+    policy:
+      - allow:
+          or:
+            - http_path:
+                is: /actions/model_switch
