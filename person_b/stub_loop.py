@@ -93,7 +93,11 @@ async def run_stub_loop(gate: PomeriumGate, zero: ZeroClient, delay: float = 1.5
         (0.70, "still data-starved, learning curve still rising -> pull more data"),
         (0.74, "per-class recall imbalanced on minority class -> data shape issue, needs enrichment"),
         (None, "native sources exhausted, still below benchmark -> fall back to Zero.xyz enrichment"),
-        (0.79, "enrichment merged but model class capped -> switch to SVM"),
+        # Zero's real data can't be merged (hospital/drug-level metadata, not
+        # per-patient rows) -- accuracy does NOT move because of Zero. The
+        # improvement below comes from switching model class, a separate,
+        # unrelated decision -- the stub must not imply Zero caused this jump.
+        (0.79, "Zero data could not be merged (schema mismatch) -- model class itself is capped -> switch to SVM"),
         (0.858, "beats 83.3% benchmark -> converged"),
     ]
 
@@ -122,12 +126,23 @@ async def run_stub_loop(gate: PomeriumGate, zero: ZeroClient, delay: float = 1.5
 
             result = await _gated_zero_enrich(gate, zero, "cardiac clinical enrichment tabular")
             chosen = result["chosen"]
-            sources.append(f"zero:{chosen['service_id']}")
+            # Deliberately NOT appended to `sources` -- that list feeds the
+            # dashboard's "data sources pulled" chips, and Zero's data is
+            # never actually merged into training, so it must not appear
+            # there as if it were.
             yield LoopEvent(
                 iteration=iteration, phase=Phase.GATE, data_sources=list(sources),
                 model_class=model, accuracy=accuracy, diagnosis=diagnosis,
-                action={"type": "zero_enrich", "service": chosen["name"], "price_usd": chosen["price_usd"]},
-                message=f"Zero.xyz: selected '{chosen['name']}' (fit {chosen['fit_score']:.1f}, {chosen['availability']}) for ${chosen['price_usd']:.2f}, gated through Pomerium + paid.",
+                action={
+                    "type": "zero_enrich", "service": chosen["name"], "price_usd": chosen["price_usd"],
+                    "merged": False,
+                    "merge_note": "hospital/drug-level metadata, not per-patient rows matching the UCI schema",
+                },
+                message=(
+                    f"Zero.xyz: selected '{chosen['name']}' (fit {chosen['fit_score']:.1f}, {chosen['availability']}) "
+                    f"for ${chosen['price_usd']:.2f}, gated through Pomerium + paid. NOT merged into training: "
+                    f"real capability data is hospital/drug-level metadata, not per-patient rows matching the UCI schema."
+                ),
             )
             await asyncio.sleep(delay)
             continue

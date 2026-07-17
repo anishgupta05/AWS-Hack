@@ -146,6 +146,11 @@
   }
   .zero-callout.show { display: block; }
   .zero-callout strong { color: var(--zero-highlight); }
+  .zero-callout.not-merged {
+    border-color: var(--status-warning);
+    background: color-mix(in srgb, var(--status-warning) 14%, var(--surface-1));
+  }
+  .zero-callout.not-merged strong { color: var(--status-warning); }
 
   .sources { display: flex; gap: 6px; flex-wrap: wrap; }
   .source-chip {
@@ -156,7 +161,7 @@
     border-radius: 999px;
   }
 
-  button#start-btn {
+  button#start-btn, button#start-real-btn {
     background: var(--series-accuracy);
     color: white;
     border: none;
@@ -165,14 +170,17 @@
     font-size: 0.85rem;
     cursor: pointer;
     margin-bottom: 16px;
+    margin-right: 8px;
   }
-  button#start-btn:disabled { opacity: 0.5; cursor: default; }
+  button#start-real-btn { background: var(--zero-highlight); }
+  button#start-btn:disabled, button#start-real-btn:disabled { opacity: 0.5; cursor: default; }
 </style>
 </head>
 <body>
   <h1>Self-Correcting Heart Disease Classifier</h1>
   <p class="subtitle">Live loop iteration history — target: beat 83.3% published SVM benchmark</p>
-  <button id="start-btn">Start loop</button>
+  <button id="start-btn">Start loop (stub)</button>
+  <button id="start-real-btn">Run real loop</button>
 
   <div class="zero-callout" id="zero-callout">
     <strong>Zero.xyz discovery moment:</strong>
@@ -214,14 +222,22 @@ const sourcesEl = document.getElementById('sources');
 const zeroCallout = document.getElementById('zero-callout');
 const zeroCalloutText = document.getElementById('zero-callout-text');
 const startBtn = document.getElementById('start-btn');
+const startRealBtn = document.getElementById('start-real-btn');
 
 let points = []; // {iteration, accuracy}
 let es = null;
+let maxIterationSeen = 0;
 
 function fmtPct(x) { return (x * 100).toFixed(1) + '%'; }
 
 function renderStats(ev) {
-  document.getElementById('stat-iteration').textContent = ev.iteration;
+  // Real-loop action/gate events arrive with iteration=0 (the real
+  // iteration number isn't known until that iteration's OBSERVE event) --
+  // don't let those clobber the counter back down.
+  if (ev.iteration > maxIterationSeen) {
+    maxIterationSeen = ev.iteration;
+    document.getElementById('stat-iteration').textContent = maxIterationSeen;
+  }
   if (ev.accuracy != null) {
     const el = document.getElementById('stat-accuracy');
     el.textContent = fmtPct(ev.accuracy);
@@ -288,31 +304,48 @@ function handleEvent(ev) {
   }
 
   if (ev.phase === 'GATE' && ev.action && ev.action.type === 'zero_enrich') {
-    zeroCalloutText.textContent = `selected "${ev.action.service}" for $${ev.action.price_usd.toFixed(2)} — discovered live, not pre-configured.`;
+    const merged = ev.action.merged === true;
+    const outcome = merged
+      ? `merged into training data.`
+      : `NOT merged into training — ${ev.action.merge_note || 'real capability data does not match the training schema'}.`;
+    zeroCalloutText.textContent = `selected "${ev.action.service}" for $${ev.action.price_usd.toFixed(2)} — discovered live, not pre-configured. ${outcome}`;
+    zeroCallout.classList.toggle('not-merged', !merged);
     zeroCallout.classList.add('show');
   }
   if (ev.phase === 'DONE') {
     startBtn.disabled = false;
-    startBtn.textContent = 'Restart loop';
+    startRealBtn.disabled = false;
+    startBtn.textContent = 'Start loop (stub)';
+    startRealBtn.textContent = 'Run real loop';
   }
 }
 
-function startLoop() {
+function startLoop(endpoint) {
   points = [];
+  maxIterationSeen = 0;
   log.innerHTML = '';
   sourcesEl.innerHTML = '';
   zeroCallout.classList.remove('show');
   renderChart();
   startBtn.disabled = true;
-  startBtn.textContent = 'Running…';
+  startRealBtn.disabled = true;
+  const runningBtn = endpoint === '/events/real' ? startRealBtn : startBtn;
+  runningBtn.textContent = 'Running…';
 
   if (es) es.close();
-  es = new EventSource('/events');
+  es = new EventSource(endpoint);
   es.onmessage = (msg) => handleEvent(JSON.parse(msg.data));
-  es.onerror = () => { es.close(); startBtn.disabled = false; startBtn.textContent = 'Start loop'; };
+  es.onerror = () => {
+    es.close();
+    startBtn.disabled = false;
+    startRealBtn.disabled = false;
+    startBtn.textContent = 'Start loop (stub)';
+    startRealBtn.textContent = 'Run real loop';
+  };
 }
 
-startBtn.addEventListener('click', startLoop);
+startBtn.addEventListener('click', () => startLoop('/events'));
+startRealBtn.addEventListener('click', () => startLoop('/events/real'));
 renderChart();
 </script>
 </body>

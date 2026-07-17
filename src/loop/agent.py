@@ -19,6 +19,7 @@ run(
     max_iterations: int = 12,
     on_action: Callable[[str, dict], None] | None = None,
     zero_enrichment_hook: Callable[[LoopState], pd.DataFrame | None] | None = None,
+    on_iteration: Callable[[IterationRecord], None] | None = None,
 ) -> LoopState
     Execute the full correction loop and return the final LoopState.
 
@@ -36,11 +37,21 @@ run(
             ENRICH_EXTERNALLY → call zero_enrichment_hook; if data returned,
                                 merge it and continue loop for one more iter;
                                 if None or no hook, stop.
-      5. Append IterationRecord to state.
+      5. Append IterationRecord to state, then fire on_iteration (if set).
 
     Stops early if target_accuracy is reached or max_iterations hit.
     Prints a human-readable log line at each step (not just numbers) so
     the demo can run with the terminal visible.
+
+on_iteration hook signature
+    on_iteration(record: IterationRecord) -> None
+    Called synchronously immediately after each iteration's IterationRecord
+    is appended to state.iterations (i.e. after OBSERVE + CORRECT for that
+    iteration have both happened). Added for Person B's live dashboard: run()
+    is a single blocking call, so without this hook a streaming consumer has
+    no way to see accuracy/diagnosis per iteration until the whole run
+    finishes. Optional and additive -- omitting it changes nothing about the
+    loop's behavior.
 
 on_action hook signature
     on_action(action_name: str, payload: dict) -> None
@@ -158,6 +169,7 @@ def run(
     max_iterations: int = 12,
     on_action: Callable[[str, dict], None] | None = None,
     zero_enrichment_hook: Callable[[LoopState], pd.DataFrame | None] | None = None,
+    on_iteration: Callable[[IterationRecord], None] | None = None,
 ) -> LoopState:
     """Execute the PLAN→ACT→OBSERVE→CORRECT loop and return final LoopState."""
 
@@ -361,6 +373,9 @@ def run(
         diagnosis_history.append((diag.verdict, result.accuracy))
         state.record(iter_record)
         state.current_model_name = current_model_name
+
+        if on_iteration:
+            on_iteration(iter_record)
 
         if should_break:
             break
