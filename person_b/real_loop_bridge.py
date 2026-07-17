@@ -39,7 +39,21 @@ from src.loop.state import IterationRecord
 
 logger = logging.getLogger("real_loop_bridge")
 
-_ZERO_TASK_DESCRIPTION = "heart disease clinical patient enrichment tabular"
+# Person A's loop now allows up to MAX_ENRICHMENT_ATTEMPTS (agent.py) real
+# Zero attempts per run instead of exactly one. Varying the query each time
+# is a genuinely different live search, not a repeat of the same call --
+# broadening/rephrasing on each subsequent attempt, similar to how a human
+# would refine a search that didn't turn up what they needed.
+_ZERO_QUERY_VARIANTS = [
+    "heart disease clinical patient enrichment tabular",
+    "cardiac risk factor patient dataset enrichment",
+    "hospital cardiology clinical outcomes data",
+]
+
+
+def _zero_query_for_attempt(attempt: int) -> str:
+    return _ZERO_QUERY_VARIANTS[(max(attempt, 1) - 1) % len(_ZERO_QUERY_VARIANTS)]
+
 
 _ACTION_TO_PATH = {
     "fetch_uci_source": "/actions/pull_data",
@@ -52,7 +66,7 @@ _ACTION_PAYLOAD_KEY = {
     "fetch_uci_source": lambda p: {"source": p["source"]},
     "nexla_transform": lambda p: {"spec": p["spec"]},
     "switch_model": lambda p: {"reason": f"{p['from']} -> {p['to']}"},
-    "zero_enrichment": lambda p: {"task_description": _ZERO_TASK_DESCRIPTION},
+    "zero_enrichment": lambda p: {"task_description": _zero_query_for_attempt(p.get("attempt", 1))},
 }
 
 
@@ -90,9 +104,14 @@ def _make_on_action(event_queue: queue.Queue):
 
 
 def _make_zero_hook(event_queue: queue.Queue):
+    attempt_counter = {"n": 0}  # mutable closure state: increments once per real hook call
+
     def zero_enrichment_hook(state):
+        attempt_counter["n"] += 1
+        query = _zero_query_for_attempt(attempt_counter["n"])
+        event_queue.put({"kind": "zero_step", "step": f"Zero attempt {attempt_counter['n']}: searching live for \"{query}\"."})
         try:
-            result = _call_pomerium_sync("/actions/zero_enrich", {"task_description": _ZERO_TASK_DESCRIPTION})
+            result = _call_pomerium_sync("/actions/zero_enrich", {"task_description": query})
             chosen = result["chosen"]
         except pomerium_client.PomeriumProxyDenied as exc:
             event_queue.put({"kind": "zero_blocked", "reason": f"pomerium denied zero_enrich: {exc}"})
