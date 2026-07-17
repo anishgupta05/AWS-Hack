@@ -140,10 +140,24 @@ def _make_on_iteration(event_queue: queue.Queue):
 
 
 async def run_real_loop_streaming(
-    target_accuracy: float = 0.87, max_iterations: int = 12
+    target_accuracy: float = 0.87, max_iterations: int = 12, query: str = ""
 ) -> AsyncIterator[LoopEvent]:
+    """`query` is free text from the dashboard's query box. The pipeline is
+    still fixed (heart-disease/UCI, target_accuracy, max_iterations) --
+    query doesn't select a different dataset or model yet -- it's only
+    echoed into the first event so the run honestly reflects what was
+    typed rather than silently ignoring it."""
     event_queue: queue.Queue = queue.Queue()
     result_holder: dict = {}
+
+    if query:
+        yield LoopEvent(
+            iteration=0, phase=Phase.CORRECT, data_sources=[],
+            message=(
+                f"Query received: \"{query}\". Running the fixed heart-disease/UCI pipeline "
+                f"(free-form dataset/model selection from the query text isn't wired up yet)."
+            ),
+        )
 
     def _run_blocking() -> None:
         try:

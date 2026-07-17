@@ -16,7 +16,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Query
 from fastapi.responses import FileResponse, StreamingResponse
 
 from person_b.pomerium_gate import PomeriumGate
@@ -51,9 +51,14 @@ async def events():
 
 
 @app.get("/events/real")
-async def events_real():
+async def events_real(query: str = Query(default="")):
+    """`query` is the free-text the user typed into the dashboard's query
+    box. The pipeline itself is still fixed (heart-disease/UCI) -- this
+    doesn't select a different dataset or model -- but it's threaded
+    through so the run's first log line honestly reflects what was typed,
+    ahead of that becoming a real capability later."""
     async def stream():
-        async for event in run_real_loop_streaming():
+        async for event in run_real_loop_streaming(query=query):
             yield event.to_sse()
 
     return StreamingResponse(stream(), media_type="text/event-stream")
