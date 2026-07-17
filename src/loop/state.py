@@ -79,15 +79,57 @@ class LoopState:
     current_model_name: str = ""
     working_df: pd.DataFrame | None = None
     test_df: pd.DataFrame | None = None
+    target_accuracy: float = 0.833  # set by run() to whatever was configured
 
     def record(self, iter_record: IterationRecord) -> None:
         """Append a completed iteration record and update tracking lists."""
-        raise NotImplementedError
+        self.iterations.append(iter_record)
+        for src in iter_record.sources_pulled:
+            if src not in self.sources_pulled:
+                self.sources_pulled.append(src)
+        if iter_record.model_name not in self.models_tried:
+            self.models_tried.append(iter_record.model_name)
 
     def sources_exhausted(self) -> bool:
         """Return True when all four UCI hospital sources have been pulled."""
-        raise NotImplementedError
+        from src.data.uci_client import SOURCES
+        return len(self.sources_pulled) == len(SOURCES)
 
     def summary(self) -> str:
         """Return a human-readable end-of-run summary with benchmark comparison."""
-        raise NotImplementedError
+        if not self.iterations:
+            return "No iterations completed."
+
+        best = max(self.iterations, key=lambda r: r.accuracy)
+        last = self.iterations[-1]
+        test_size = len(self.test_df) if self.test_df is not None else "?"
+
+        lines = [
+            "=" * 70,
+            "FINAL RUN SUMMARY",
+            "=" * 70,
+            f"Best accuracy : {best.accuracy:.3f}  (iter {best.iteration}, model={best.model_name})",
+            f"Final accuracy: {last.accuracy:.3f}  (iter {last.iteration}, model={last.model_name})",
+            f"Frozen test set: {test_size} rows (multi-site, fixed across all iterations)",
+            "",
+            "Benchmark comparison (using best accuracy):",
+            f"  LR baseline   (78.7%) : {best.accuracy - 0.787:+.1%}  {'✓' if best.accuracy > 0.787 else '✗'}",
+            f"  Best SVM pub  (83.3%) : {best.accuracy - 0.833:+.1%}  {'✓' if best.accuracy > 0.833 else '✗'}",
+            f"  Our target   ({self.target_accuracy:.1%}) : {best.accuracy - self.target_accuracy:+.1%}  {'✓' if best.accuracy >= self.target_accuracy else '✗'}",
+            "",
+            f"Data sources pulled (in order): {' → '.join(last.sources_pulled)}",
+            "",
+            "Iteration history:",
+            f"  {'i':>2}  {'model':<22}  {'n_src':>5}  {'n_train':>7}  {'acc':>6}  {'f1':>6}  {'gap':>6}  {'diagnosis':<20}  action",
+            "  " + "─" * 115,
+        ]
+
+        for r in self.iterations:
+            lines.append(
+                f"  {r.iteration:>2}  {r.model_name:<22}  {len(r.sources_pulled):>5}  "
+                f"{r.n_records:>7}  {r.accuracy:>6.3f}  {r.f1:>6.3f}  "
+                f"{r.train_accuracy - r.accuracy:>6.3f}  {r.diagnosis:<20}  {r.action_taken}"
+            )
+
+        lines.append("=" * 70)
+        return "\n".join(lines)
