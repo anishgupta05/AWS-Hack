@@ -393,8 +393,22 @@ class ZeroClient:
                 steps.append("No live capability URL on the selected listing — skipped the paid call (mock mode).")
             return best
 
+        def _record_charge(result: dict, attempt_label: str) -> None:
+            """x402 can charge before validating the request -- every
+            attempt, successful or not, may have moved real money. Surface
+            each one, not just the final attempt's."""
+            if steps is None:
+                return
+            payment = result.get("payment") or {}
+            amount, asset = payment.get("amount"), (payment.get("asset") or payment.get("currency"))
+            if not amount:
+                return
+            outcome = "succeeded" if result.get("ok") else "failed but was still charged"
+            steps.append(f"{attempt_label}: {outcome} — {amount} {asset or 'USDC'} moved via x402.")
+
         try:
             result = await self._fetch_once(best, params=None)
+            _record_charge(result, "Attempt 1 (as advertised)")
             method_override = None
 
             if not result.get("ok"):
@@ -409,8 +423,9 @@ class ZeroClient:
                         best.name, error_text,
                     )
                     if steps is not None:
-                        steps.append(f"First live call rejected (GET not accepted: \"{error_text}\") — retrying with POST, a real second attempt.")
+                        steps.append(f"Attempt 1 rejected (GET not accepted: \"{error_text}\") — retrying live with POST.")
                     result = await self._fetch_once(best, params=None, method_override=method_override)
+                    _record_charge(result, "Attempt 2 (POST retry)")
 
             if not result.get("ok"):
                 candidates = _extract_field_candidates(result)
@@ -421,18 +436,13 @@ class ZeroClient:
                         best.name, retry_params,
                     )
                     if steps is not None:
-                        steps.append(f"Call rejected missing params — retrying live with {retry_params}, another real attempt.")
+                        steps.append(f"Call rejected missing params — retrying live with {retry_params}.")
                     result = await self._fetch_once(best, params=retry_params, method_override=method_override)
+                    _record_charge(result, "Attempt 3 (params retry)")
 
             self._log_fetch_result(best, result)
-            if steps is not None:
-                payment = result.get("payment") or {}
-                if result.get("ok") and payment.get("amount"):
-                    steps.append(f"Paid {payment.get('amount')} {payment.get('asset') or payment.get('currency') or 'USDC'} via x402 (latency {result.get('latencyMs')}ms) — real funds moved.")
-                elif payment.get("amount"):
-                    steps.append(f"Call ultimately failed, but {payment.get('amount')} {payment.get('asset') or payment.get('currency') or 'USDC'} was still charged via x402 before validation.")
-                else:
-                    steps.append("Call did not complete successfully and no payment was charged.")
+            if steps is not None and not result.get("ok"):
+                steps.append("Final attempt did not succeed — see above for what, if anything, was actually charged.")
         except Exception as exc:
             logger.warning("zero fetch failed (%s) — proceeding without live payment confirmation", exc)
             if steps is not None:
