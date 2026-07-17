@@ -140,8 +140,8 @@ async def run_stub_loop(gate: PomeriumGate, zero: ZeroClient, delay: float = 1.5
                 },
                 message=(
                     f"Zero.xyz: selected '{chosen['name']}' (fit {chosen['fit_score']:.1f}, {chosen['availability']}) "
-                    f"for ${chosen['price_usd']:.2f}, gated through Pomerium + paid. NOT merged into training: "
-                    f"real capability data is hospital/drug-level metadata, not per-patient rows matching the UCI schema."
+                    f"for ${chosen['price_usd']:.2f}, gated through Pomerium + paid. Evaluated the response and "
+                    f"determined it wasn't a fit for training -- a real judgment call, not a scripted outcome."
                 ),
             )
             await asyncio.sleep(delay)

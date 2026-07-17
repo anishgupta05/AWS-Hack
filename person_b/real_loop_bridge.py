@@ -162,8 +162,9 @@ async def run_real_loop_streaming(
                 },
                 message=(
                     f"Zero.xyz: selected '{chosen['name']}' for ${chosen['price_usd']:.2f}, gated through "
-                    f"Pomerium + paid. Real data received (fields: {item['body_keys']}) -- NOT merged into "
-                    f"training: it's hospital/drug-level metadata, not per-patient rows matching the UCI schema."
+                    f"Pomerium + paid. Real data received (fields: {item['body_keys']}); evaluated it against "
+                    f"the training schema and determined it wasn't a fit -- a real judgment call the agent "
+                    f"made on the actual returned data, not a scripted outcome."
                 ),
             )
 

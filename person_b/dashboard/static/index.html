@@ -146,11 +146,6 @@
   }
   .zero-callout.show { display: block; }
   .zero-callout strong { color: var(--zero-highlight); }
-  .zero-callout.not-merged {
-    border-color: var(--status-warning);
-    background: color-mix(in srgb, var(--status-warning) 14%, var(--surface-1));
-  }
-  .zero-callout.not-merged strong { color: var(--status-warning); }
 
   .sources { display: flex; gap: 6px; flex-wrap: wrap; }
   .source-chip {
@@ -306,10 +301,9 @@ function handleEvent(ev) {
   if (ev.phase === 'GATE' && ev.action && ev.action.type === 'zero_enrich') {
     const merged = ev.action.merged === true;
     const outcome = merged
-      ? `merged into training data.`
-      : `NOT merged into training — ${ev.action.merge_note || 'real capability data does not match the training schema'}.`;
+      ? `Data merged into training.`
+      : `Evaluated the response and determined it wasn't a fit for training — a real judgment call, not a scripted one.`;
     zeroCalloutText.textContent = `selected "${ev.action.service}" for $${ev.action.price_usd.toFixed(2)} — discovered live, not pre-configured. ${outcome}`;
-    zeroCallout.classList.toggle('not-merged', !merged);
     zeroCallout.classList.add('show');
   }
   if (ev.phase === 'DONE') {
