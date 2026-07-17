@@ -1,0 +1,12 @@
+# Pomerium-gated policy boundary for autonomous actions.
+# Every action the agent takes with a real-world side effect must be
+# allowlisted here and stay under the spend ceiling, or it is denied.
+
+spend_ceiling_usd: 5.00
+
+allowlist:
+  - pull_data          # UCI API pull of an additional hospital source
+  - nexla_transform     # Nexla schema normalization / feature transform
+  - zero_discover        # Zero.xyz marketplace search (no spend)
+  - zero_enrich            # Zero.xyz paid enrichment purchase (spend-bearing)
+  - model_switch             # switching model class
