@@ -155,12 +155,15 @@ async def run_real_loop_streaming(
             chosen = item["chosen"]
             yield LoopEvent(
                 iteration=0, phase=Phase.GATE, data_sources=[],
-                action={"type": "zero_enrich", "service": chosen["name"], "price_usd": chosen["price_usd"]},
+                action={
+                    "type": "zero_enrich", "service": chosen["name"], "price_usd": chosen["price_usd"],
+                    "merged": False,
+                    "merge_note": "hospital/drug-level metadata, not per-patient rows matching the UCI schema",
+                },
                 message=(
                     f"Zero.xyz: selected '{chosen['name']}' for ${chosen['price_usd']:.2f}, gated through "
-                    f"Pomerium + paid. Real data received (fields: {item['body_keys']}), but it's "
-                    f"hospital/drug-level metadata, not per-patient rows matching the UCI schema -- "
-                    f"can't be merged as training data."
+                    f"Pomerium + paid. Real data received (fields: {item['body_keys']}) -- NOT merged into "
+                    f"training: it's hospital/drug-level metadata, not per-patient rows matching the UCI schema."
                 ),
             )
 
