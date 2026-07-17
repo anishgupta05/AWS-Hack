@@ -2,31 +2,48 @@
 Training and evaluation harness.
 
 Owns the train/test split, model fitting, and structured evaluation.
-The test set is created once from the initial Cleveland pull and held
-fixed for the entire run — as additional sources are merged into the
-working dataset they go into the training portion only, so accuracy
-numbers are comparable across iterations.
 
-The harness also owns target binarization: raw UCI 'target' values
-1–4 (disease present at varying severity) all map to 1. This happens
-inside split() so every downstream function always sees a binary label.
+Test-set strategy (multi-site frozen split)
+-------------------------------------------
+The canonical test set is built ONCE at startup by sampling proportionally
+from ALL FOUR UCI hospital sources before any incremental pull begins.
+This ensures every iteration evaluates against the same multi-site
+distribution — so accuracy numbers are directly comparable across
+iterations and the improvement from adding each source is real signal,
+not an artefact of an easier in-distribution test split.
+
+    setup = harness.build_frozen_test_set(all_four_normalized_dfs)
+    # setup.test_df  — frozen, never changes (~185 rows, all four sites)
+    # setup.train_reserves — {source: 80%-slice}; revealed incrementally
+
+    train_df = harness.assemble_train(tracker.pulled, setup.train_reserves)
+    fitted, result = harness.fit_and_eval(model, train_df, setup.test_df)
+
+split() is kept for quick ad-hoc experiments but is NOT used in the
+main agent loop.
+
+The harness owns target binarization: raw UCI 'target' values 1–4 map
+to 1. Binarization happens in both split() and build_frozen_test_set().
 
 Public entry points
 -------------------
-EvalResult          dataclass with all fields the diagnosis module needs
-split(df)           stratified 80/20 split, binarizes target, call once
-train(model, ...)   fit and return the model
-evaluate(...)       compute all EvalResult fields in one pass
-fit_and_eval(...)   convenience: train + evaluate from DataFrames
+FrozenTestSetup         dataclass returned by build_frozen_test_set()
+EvalResult              dataclass with all fields the diagnosis module needs
+build_frozen_test_set() build the frozen multi-site test set at startup
+assemble_train()        concatenate train slices for the pulled sources
+split()                 single-source stratified split (ad-hoc / tests)
+train(model, ...)       fit and return the model
+evaluate(...)           compute all EvalResult fields in one pass
+fit_and_eval(...)       convenience: train + evaluate from DataFrames
 """
 
 from __future__ import annotations
 
 import logging
+from dataclasses import dataclass, field
 
 import numpy as np
 import pandas as pd
-from dataclasses import dataclass, field
 from sklearn.metrics import (
     accuracy_score,
     confusion_matrix,
@@ -150,6 +167,130 @@ def split(
         100 * test_df["target"].mean(),
     )
     return train_df.reset_index(drop=True), test_df.reset_index(drop=True)
+
+
+# ---------------------------------------------------------------------------
+# Frozen multi-site test set  (primary evaluation methodology)
+# ---------------------------------------------------------------------------
+
+@dataclass
+class FrozenTestSetup:
+    """Result of build_frozen_test_set(); passed to the agent loop unchanged.
+
+    Attributes
+    ----------
+    test_df:        frozen evaluation set, ~20% of each hospital source,
+                    targets already binarized. Never mutated after creation.
+    train_reserves: {source_name: DataFrame} of the remaining ~80% rows
+                    per source. The agent "unlocks" each source's slice
+                    by passing it to assemble_train() as sources are pulled.
+    source_sizes:   {source_name: (n_train_rows, n_test_rows)} — handy
+                    for logging how much each pull adds to the training set.
+    """
+    test_df: pd.DataFrame
+    train_reserves: dict[str, pd.DataFrame]
+    source_sizes: dict[str, tuple[int, int]]
+
+
+def build_frozen_test_set(
+    sources: dict[str, pd.DataFrame],
+    test_fraction: float = 0.20,
+    random_state: int = 42,
+) -> FrozenTestSetup:
+    """Build a frozen, multi-site test set from all four UCI sources.
+
+    Must be called ONCE at agent startup before any incremental pull.
+    Each source contributes test_fraction of its rows (stratified by
+    target) to the frozen test set; the remaining rows become that
+    source's training reserve, unlocked as the loop pulls each source.
+
+    Parameters
+    ----------
+    sources:        {source_name: normalized_df} for all four sites.
+                    DataFrames should already be normalized by Nexla
+                    (canonical columns, no "?", targets still raw 0–4).
+    test_fraction:  fraction of each source to hold out for testing.
+    random_state:   reproducibility seed.
+
+    Returns
+    -------
+    FrozenTestSetup with test_df (concatenation of all test slices,
+    targets binarized) and train_reserves keyed by source name.
+    """
+    test_slices: list[pd.DataFrame] = []
+    train_reserves: dict[str, pd.DataFrame] = {}
+    source_sizes: dict[str, tuple[int, int]] = {}
+
+    for source_name, raw_df in sources.items():
+        df = raw_df.copy()
+        # Binarize target: 0 = no disease, 1 = disease present (values 1–4).
+        df["target"] = (df["target"] > 0).astype(int)
+
+        train_slice, test_slice = train_test_split(
+            df,
+            test_size=test_fraction,
+            random_state=random_state,
+            stratify=df["target"],
+        )
+        test_slices.append(test_slice)
+        train_reserves[source_name] = train_slice.reset_index(drop=True)
+        source_sizes[source_name] = (len(train_slice), len(test_slice))
+
+        logger.info(
+            "[harness] %s → %d train reserve / %d test  "
+            "(disease prev train=%.1f%%  test=%.1f%%)",
+            source_name,
+            len(train_slice),
+            len(test_slice),
+            100 * train_slice["target"].mean(),
+            100 * test_slice["target"].mean(),
+        )
+
+    test_df = pd.concat(test_slices, ignore_index=True)
+    logger.info(
+        "[harness] frozen test set: %d rows from %d sources  "
+        "(disease prevalence=%.1f%%)",
+        len(test_df),
+        len(sources),
+        100 * test_df["target"].mean(),
+    )
+    return FrozenTestSetup(
+        test_df=test_df,
+        train_reserves=train_reserves,
+        source_sizes=source_sizes,
+    )
+
+
+def assemble_train(
+    pulled_sources: list[str],
+    train_reserves: dict[str, pd.DataFrame],
+) -> pd.DataFrame:
+    """Concatenate train reserve slices for all pulled sources.
+
+    Called each iteration as new sources are pulled. Only sources in
+    pulled_sources are included — unrevealed sources stay locked.
+
+    Parameters
+    ----------
+    pulled_sources:  list of source names the agent has pulled so far,
+                     in pull order (from DataSourceTracker.pulled).
+    train_reserves:  the dict from FrozenTestSetup.train_reserves.
+
+    Returns
+    -------
+    Combined training DataFrame, reset index, targets already binarized.
+    Raises KeyError if a pulled source has no reserve (setup mismatch).
+    """
+    slices = [train_reserves[src] for src in pulled_sources]
+    if not slices:
+        raise ValueError("pulled_sources is empty — cannot assemble an empty training set.")
+    train_df = pd.concat(slices, ignore_index=True)
+    logger.info(
+        "[harness] assembled train: %d rows from sources=%s",
+        len(train_df),
+        pulled_sources,
+    )
+    return train_df
 
 
 def train(model, X_train: pd.DataFrame, y_train: pd.Series):
