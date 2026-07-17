@@ -8,9 +8,12 @@ What this confirms:
   stop at that iteration — it continues and trains/evaluates on the merged data.
 - The iteration record immediately after the enrichment action shows n_records
   larger than the pre-enrichment training set, proving the data was included.
-- When the hook returns None, the loop stops immediately at that iteration.
-- The loop stops after a second ENRICH_EXTERNALLY verdict even if a hook is
-  wired (prevents infinite re-enrichment cycles).
+- When the hook returns None, the loop retries (still underperforming, sources
+  still exhausted) rather than stopping immediately -- Zero can be tried more
+  than once per run, up to MAX_ENRICHMENT_ATTEMPTS (agent.py), not exactly once.
+- The loop stops once MAX_ENRICHMENT_ATTEMPTS real attempts have been made,
+  regardless of whether any of them returned data (prevents unlimited
+  re-enrichment cycles while still allowing more than a single try).
 """
 
 import numpy as np
@@ -74,9 +77,11 @@ def test_loop_continues_after_enrichment_with_data():
 
     state = _run(hook=hook)
 
-    # Hook was called exactly once (second ENRICH_EXTERNALLY triggers stop, not a re-call).
-    assert hook_call_count["n"] == 1, (
-        f"Expected hook called once, got {hook_call_count['n']}"
+    # With an unreachable target, ENRICH_EXTERNALLY keeps firing after each
+    # merge (still exhausted, still underperforming) -- the hook gets called
+    # repeatedly up to the cap, not exactly once.
+    assert hook_call_count["n"] == 3, (
+        f"Expected hook called MAX_ENRICHMENT_ATTEMPTS (3) times, got {hook_call_count['n']}"
     )
 
     # Find the iteration that recorded the enrichment action.
@@ -109,18 +114,27 @@ def test_loop_continues_after_enrichment_with_data():
 
 
 def test_loop_stops_when_hook_returns_none():
-    """Hook returns None → loop stops at that iteration, not after."""
+    """Hook always returns None → loop retries up to the attempt cap, then
+    stops with an explicit limit-reached action, not silently on the first
+    None."""
+    hook_calls = {"n": 0}
+
     def hook(state: LoopState):
+        hook_calls["n"] += 1
         return None
 
     state = _run(hook=hook)
 
+    assert hook_calls["n"] == 3, (
+        f"Expected hook retried up to MAX_ENRICHMENT_ATTEMPTS (3) times, got {hook_calls['n']}"
+    )
+
     last = state.iterations[-1]
-    assert last.action_taken == "zero_enrichment_called(hook_returned_none)", (
+    assert "attempt_limit_reached" in last.action_taken, (
         f"Unexpected final action: {last.action_taken!r}"
     )
 
-    # No post-enrichment iteration should exist.
+    # No post-enrichment iteration should exist -- the hook never returned data.
     enrich_iters = [r for r in state.iterations if "records_merged" in r.action_taken]
     assert not enrich_iters, "Found unexpected records_merged action when hook returned None"
 
@@ -135,8 +149,9 @@ def test_loop_stops_without_hook():
     )
 
 
-def test_enrichment_not_called_twice():
-    """Second ENRICH_EXTERNALLY verdict (post-enrichment iter) stops without re-calling hook."""
+def test_enrichment_capped_at_max_attempts():
+    """Repeated ENRICH_EXTERNALLY verdicts retry the hook, but only up to
+    MAX_ENRICHMENT_ATTEMPTS -- not unlimited, and not capped at exactly one."""
     hook_calls = {"n": 0}
 
     def hook(state: LoopState) -> pd.DataFrame:
@@ -145,12 +160,12 @@ def test_enrichment_not_called_twice():
 
     state = _run(hook=hook, max_iter=15)
 
-    assert hook_calls["n"] == 1, (
-        f"Hook called {hook_calls['n']} times — expected exactly 1"
+    assert hook_calls["n"] == 3, (
+        f"Hook called {hook_calls['n']} times — expected exactly MAX_ENRICHMENT_ATTEMPTS (3)"
     )
 
-    # The final iteration should be the post-enrichment stop.
+    # The final iteration should be the attempt-limit stop.
     last = state.iterations[-1]
-    assert "already_attempted" in last.action_taken or "records_merged" in last.action_taken, (
+    assert "attempt_limit_reached" in last.action_taken or "records_merged" in last.action_taken, (
         f"Unexpected final action: {last.action_taken!r}"
     )

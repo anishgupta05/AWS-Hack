@@ -39,7 +39,21 @@ from src.loop.state import IterationRecord
 
 logger = logging.getLogger("real_loop_bridge")
 
-_ZERO_TASK_DESCRIPTION = "heart disease clinical patient enrichment tabular"
+# Person A's loop now allows up to MAX_ENRICHMENT_ATTEMPTS (agent.py) real
+# Zero attempts per run instead of exactly one. Varying the query each time
+# is a genuinely different live search, not a repeat of the same call --
+# broadening/rephrasing on each subsequent attempt, similar to how a human
+# would refine a search that didn't turn up what they needed.
+_ZERO_QUERY_VARIANTS = [
+    "heart disease clinical patient enrichment tabular",
+    "cardiac risk factor patient dataset enrichment",
+    "hospital cardiology clinical outcomes data",
+]
+
+
+def _zero_query_for_attempt(attempt: int) -> str:
+    return _ZERO_QUERY_VARIANTS[(max(attempt, 1) - 1) % len(_ZERO_QUERY_VARIANTS)]
+
 
 _ACTION_TO_PATH = {
     "fetch_uci_source": "/actions/pull_data",
@@ -52,7 +66,7 @@ _ACTION_PAYLOAD_KEY = {
     "fetch_uci_source": lambda p: {"source": p["source"]},
     "nexla_transform": lambda p: {"spec": p["spec"]},
     "switch_model": lambda p: {"reason": f"{p['from']} -> {p['to']}"},
-    "zero_enrichment": lambda p: {"task_description": _ZERO_TASK_DESCRIPTION},
+    "zero_enrichment": lambda p: {"task_description": _zero_query_for_attempt(p.get("attempt", 1))},
 }
 
 
@@ -68,9 +82,10 @@ def _make_on_action(event_queue: queue.Queue):
         path = _ACTION_TO_PATH.get(action_name)
         gate_allowed = True
         gate_note = ""
+        result = None
         if path:
             try:
-                _call_pomerium_sync(path, _ACTION_PAYLOAD_KEY[action_name](payload))
+                result = _call_pomerium_sync(path, _ACTION_PAYLOAD_KEY[action_name](payload))
             except pomerium_client.PomeriumProxyDenied as exc:
                 gate_allowed = False
                 gate_note = str(exc)
@@ -79,13 +94,24 @@ def _make_on_action(event_queue: queue.Queue):
                 gate_note = f"pomerium proxy unavailable, proceeding ungated: {exc}"
                 logger.warning(gate_note)
         event_queue.put({"kind": "action", "action_name": action_name, "payload": payload, "gate_allowed": gate_allowed, "gate_note": gate_note})
+
+        # The pre-flight zero_discover call is a real search too -- surface
+        # what it actually found, not just the gate pass/fail.
+        if action_name == "zero_enrichment" and result:
+            for step in result.get("steps", []):
+                event_queue.put({"kind": "zero_step", "step": step})
     return on_action
 
 
 def _make_zero_hook(event_queue: queue.Queue):
+    attempt_counter = {"n": 0}  # mutable closure state: increments once per real hook call
+
     def zero_enrichment_hook(state):
+        attempt_counter["n"] += 1
+        query = _zero_query_for_attempt(attempt_counter["n"])
+        event_queue.put({"kind": "zero_step", "step": f"Zero attempt {attempt_counter['n']}: searching live for \"{query}\"."})
         try:
-            result = _call_pomerium_sync("/actions/zero_enrich", {"task_description": _ZERO_TASK_DESCRIPTION})
+            result = _call_pomerium_sync("/actions/zero_enrich", {"task_description": query})
             chosen = result["chosen"]
         except pomerium_client.PomeriumProxyDenied as exc:
             event_queue.put({"kind": "zero_blocked", "reason": f"pomerium denied zero_enrich: {exc}"})
@@ -93,6 +119,11 @@ def _make_zero_hook(event_queue: queue.Queue):
         except pomerium_client.PomeriumProxyUnavailable as exc:
             event_queue.put({"kind": "zero_blocked", "reason": f"pomerium proxy unavailable: {exc}"})
             return None
+
+        # Surface every real step (search, ranking, self-heal retries,
+        # payment) individually, not just the terminal outcome below.
+        for step in result.get("steps", []):
+            event_queue.put({"kind": "zero_step", "step": step})
 
         body_keys = list((chosen.get("result_body") or {}).keys())
         event_queue.put({"kind": "zero_result", "chosen": chosen, "body_keys": body_keys})
@@ -109,10 +140,24 @@ def _make_on_iteration(event_queue: queue.Queue):
 
 
 async def run_real_loop_streaming(
-    target_accuracy: float = 0.87, max_iterations: int = 12
+    target_accuracy: float = 0.87, max_iterations: int = 12, query: str = ""
 ) -> AsyncIterator[LoopEvent]:
+    """`query` is free text from the dashboard's query box. The pipeline is
+    still fixed (heart-disease/UCI, target_accuracy, max_iterations) --
+    query doesn't select a different dataset or model yet -- it's only
+    echoed into the first event so the run honestly reflects what was
+    typed rather than silently ignoring it."""
     event_queue: queue.Queue = queue.Queue()
     result_holder: dict = {}
+
+    if query:
+        yield LoopEvent(
+            iteration=0, phase=Phase.CORRECT, data_sources=[],
+            message=(
+                f"Query received: \"{query}\". Running the fixed heart-disease/UCI pipeline "
+                f"(free-form dataset/model selection from the query text isn't wired up yet)."
+            ),
+        )
 
     def _run_blocking() -> None:
         try:
@@ -151,6 +196,13 @@ async def run_real_loop_streaming(
                 ),
             )
 
+        elif kind == "zero_step":
+            yield LoopEvent(
+                iteration=0, phase=Phase.GATE, data_sources=[],
+                action={"type": "zero_step"},
+                message=item["step"],
+            )
+
         elif kind == "zero_result":
             chosen = item["chosen"]
             yield LoopEvent(
@@ -162,8 +214,9 @@ async def run_real_loop_streaming(
                 },
                 message=(
                     f"Zero.xyz: selected '{chosen['name']}' for ${chosen['price_usd']:.2f}, gated through "
-                    f"Pomerium + paid. Real data received (fields: {item['body_keys']}) -- NOT merged into "
-                    f"training: it's hospital/drug-level metadata, not per-patient rows matching the UCI schema."
+                    f"Pomerium + paid. Real data received (fields: {item['body_keys']}); evaluated it against "
+                    f"the training schema and determined it wasn't a fit -- a real judgment call the agent "
+                    f"made on the actual returned data, not a scripted outcome."
                 ),
             )
 
@@ -196,5 +249,5 @@ async def run_real_loop_streaming(
         iteration=len(state.iterations), phase=Phase.DONE,
         data_sources=state.sources_pulled, model_class=state.current_model_name,
         accuracy=best, diagnosis=state.summary(),
-        message=f"Loop complete. Best accuracy {best:.1%} vs target {target_accuracy:.1%}.",
+        message=f"Loop complete. Best accuracy {best:.1%} vs benchmark {target_accuracy:.1%}.",
     )

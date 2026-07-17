@@ -209,7 +209,8 @@ def run(
     models_tried_local: list[str] = []    # models evaluated so far (incl. current)
     diagnosis_history: list[tuple[str, float]] = []  # (verdict, accuracy) per iter
     enrichment_df: pd.DataFrame | None = None  # Zero.xyz data if hook returned it
-    enrichment_attempted: bool = False    # True once hook has been called; prevents re-firing
+    enrichment_attempts: int = 0          # number of times the hook has been called
+    MAX_ENRICHMENT_ATTEMPTS = 3           # cap real attempts rather than allowing unlimited retries
 
     # How many non-weak-baseline models exist in the pool.
     n_capable = len([m for m in registry.MODEL_POOL if m != registry.WEAK_BASELINE_NAME])
@@ -319,23 +320,23 @@ def run(
                 current_model_name = next_name
 
         elif diag.verdict == ENRICH_EXTERNALLY:
-            if enrichment_attempted:
-                # Hook was already called last time we hit this branch.
-                # Whether it returned data or None, we have nothing left
-                # to try — stop cleanly.
-                action_taken = "zero_enrichment_already_attempted — stopping"
+            if enrichment_attempts >= MAX_ENRICHMENT_ATTEMPTS:
+                # Capped, not unlimited -- after MAX_ENRICHMENT_ATTEMPTS real
+                # tries we have nothing left to reasonably attempt — stop
+                # cleanly rather than hammering the marketplace forever.
+                action_taken = f"zero_enrichment_attempt_limit_reached({enrichment_attempts}) — stopping"
                 should_break = True
             elif zero_enrichment_hook:
+                enrichment_attempts += 1
                 if on_action:
-                    on_action("zero_enrichment", {"reason": diag.reason})
+                    on_action("zero_enrichment", {"reason": diag.reason, "attempt": enrichment_attempts, "max_attempts": MAX_ENRICHMENT_ATTEMPTS})
                 fetched = zero_enrichment_hook(state)
-                enrichment_attempted = True
                 if fetched is not None:
                     # Persist for ACT in the next iteration; the loop continues
                     # so the enriched data actually gets trained on and evaluated.
                     enrichment_df = fetched
                     action_taken = (
-                        f"zero_enrichment_called(records_merged={len(fetched)})"
+                        f"zero_enrichment_called(records_merged={len(fetched)}, attempt={enrichment_attempts})"
                     )
                     _p(
                         f"[iter {iteration}] Zero.xyz enrichment: {len(fetched)} records "
@@ -343,8 +344,11 @@ def run(
                     )
                     # Do NOT set should_break — let the loop continue.
                 else:
-                    action_taken = "zero_enrichment_called(hook_returned_none)"
-                    should_break = True
+                    action_taken = f"zero_enrichment_called(hook_returned_none, attempt={enrichment_attempts}/{MAX_ENRICHMENT_ATTEMPTS})"
+                    # Do NOT set should_break — if still underperforming with
+                    # sources exhausted, diagnose() will return
+                    # ENRICH_EXTERNALLY again next iteration and this branch
+                    # tries again, live, up to the cap above.
             else:
                 action_taken = "zero_enrichment_attempted(no_hook_configured)"
                 should_break = True

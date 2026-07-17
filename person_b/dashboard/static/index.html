@@ -7,6 +7,7 @@
   :root {
     color-scheme: light;
     --surface-1:      #fcfcfb;
+    --surface-2:      #f2f1ed;
     --page:           #f9f9f7;
     --text-primary:   #0b0b0b;
     --text-secondary: #52514e;
@@ -15,190 +16,386 @@
     --baseline:       #c3c2b7;
     --border:         rgba(11,11,11,0.10);
     --series-accuracy:#2a78d6;
+    --series-accuracy-soft: rgba(42,120,214,0.14);
     --status-good:    #0ca30c;
+    --status-good-soft: rgba(12,163,12,0.12);
     --status-warning: #fab219;
     --status-critical:#d03b3b;
     --zero-highlight: #eda100;
+    --zero-highlight-soft: rgba(237,161,0,0.12);
+    --shadow: 0 1px 2px rgba(11,11,11,0.04), 0 8px 24px rgba(11,11,11,0.04);
   }
   @media (prefers-color-scheme: dark) {
     :root:where(:not([data-theme="light"])) {
       color-scheme: dark;
-      --surface-1:      #1a1a19;
-      --page:           #0d0d0d;
-      --text-primary:   #ffffff;
+      --surface-1:      #161615;
+      --surface-2:      #1f1f1d;
+      --page:           #0b0b0a;
+      --text-primary:   #f5f5f3;
       --text-secondary: #c3c2b7;
-      --text-muted:     #898781;
-      --gridline:       #2c2c2a;
-      --baseline:       #383835;
-      --border:         rgba(255,255,255,0.10);
-      --series-accuracy:#3987e5;
-      --status-good:    #0ca30c;
+      --text-muted:     #8f8d87;
+      --gridline:       #292926;
+      --baseline:       #3a3a37;
+      --border:         rgba(255,255,255,0.08);
+      --series-accuracy:#4c94ee;
+      --series-accuracy-soft: rgba(76,148,238,0.14);
+      --status-good:    #33c653;
+      --status-good-soft: rgba(51,198,83,0.12);
       --status-warning: #fab219;
       --status-critical:#e66767;
-      --zero-highlight: #c98500;
+      --zero-highlight: #f0aa2b;
+      --zero-highlight-soft: rgba(240,170,43,0.12);
+      --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 12px 32px rgba(0,0,0,0.35);
     }
   }
   :root[data-theme="dark"] {
     color-scheme: dark;
-    --surface-1:      #1a1a19;
-    --page:           #0d0d0d;
-    --text-primary:   #ffffff;
+    --surface-1:      #161615;
+    --surface-2:      #1f1f1d;
+    --page:           #0b0b0a;
+    --text-primary:   #f5f5f3;
     --text-secondary: #c3c2b7;
-    --text-muted:     #898781;
-    --gridline:       #2c2c2a;
-    --baseline:       #383835;
-    --border:         rgba(255,255,255,0.10);
-    --series-accuracy:#3987e5;
-    --status-good:    #0ca30c;
+    --text-muted:     #8f8d87;
+    --gridline:       #292926;
+    --baseline:       #3a3a37;
+    --border:         rgba(255,255,255,0.08);
+    --series-accuracy:#4c94ee;
+    --series-accuracy-soft: rgba(76,148,238,0.14);
+    --status-good:    #33c653;
+    --status-good-soft: rgba(51,198,83,0.12);
     --status-warning: #fab219;
     --status-critical:#e66767;
-    --zero-highlight: #c98500;
+    --zero-highlight: #f0aa2b;
+    --zero-highlight-soft: rgba(240,170,43,0.12);
+    --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 12px 32px rgba(0,0,0,0.35);
   }
 
   * { box-sizing: border-box; }
   body {
     margin: 0;
     background: var(--page);
+    background-image: radial-gradient(circle at 15% 0%, var(--series-accuracy-soft), transparent 40%);
+    background-attachment: fixed;
     color: var(--text-primary);
     font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
-    padding: 24px;
+    padding: 28px 32px 48px;
   }
-  h1 { font-size: 1.1rem; margin: 0 0 4px; }
-  .subtitle { color: var(--text-secondary); font-size: 0.85rem; margin: 0 0 20px; }
+
+  .topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    max-width: 1240px;
+    margin: 0 auto 22px;
+    flex-wrap: wrap;
+  }
+  .titleblock h1 {
+    font-size: 1.3rem;
+    font-weight: 650;
+    letter-spacing: -0.01em;
+    margin: 0 0 4px;
+  }
+  .subtitle { color: var(--text-secondary); font-size: 0.85rem; margin: 0; }
+  .subtitle .target {
+    color: var(--text-primary);
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+  }
+
+  .actions { display: flex; gap: 8px; align-items: center; }
+
+  .query-bar {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    max-width: 1240px;
+    margin: 0 auto 6px;
+  }
+  #query-input {
+    flex: 1;
+    background: var(--surface-1);
+    color: var(--text-primary);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 14px;
+    font-size: 0.88rem;
+    font-family: inherit;
+    box-shadow: var(--shadow);
+  }
+  #query-input:focus {
+    outline: none;
+    border-color: var(--series-accuracy);
+  }
+  #query-input::placeholder { color: var(--text-muted); }
+
+  .query-note {
+    max-width: 1240px;
+    margin: 0 auto 18px;
+    font-size: 0.74rem;
+    color: var(--text-muted);
+    font-style: italic;
+    min-height: 1em;
+  }
+
+  button#start-btn, button#start-real-btn, button#query-submit {
+    background: var(--surface-1);
+    color: var(--text-primary);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 9px 16px;
+    font-size: 0.82rem;
+    font-weight: 550;
+    cursor: pointer;
+    transition: transform 0.08s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+    box-shadow: var(--shadow);
+    white-space: nowrap;
+  }
+  button#start-btn:hover:not(:disabled), button#start-real-btn:hover:not(:disabled), button#query-submit:hover:not(:disabled) {
+    border-color: var(--series-accuracy);
+    transform: translateY(-1px);
+  }
+  button#query-submit {
+    background: var(--series-accuracy);
+    color: #fff;
+    border-color: transparent;
+  }
+  button#query-submit:hover:not(:disabled) { border-color: transparent; filter: brightness(1.08); }
+  button#start-btn:disabled, button#start-real-btn:disabled, button#query-submit:disabled { opacity: 0.45; cursor: default; transform: none; }
 
   .layout {
     display: grid;
-    grid-template-columns: minmax(0, 2fr) minmax(280px, 1fr);
-    gap: 16px;
-    max-width: 1200px;
+    grid-template-columns: minmax(0, 1.8fr) minmax(260px, 1fr) minmax(280px, 1fr);
+    gap: 18px;
+    max-width: 1520px;
+    margin: 0 auto;
   }
-  @media (max-width: 900px) { .layout { grid-template-columns: 1fr; } }
+  @media (max-width: 1200px) { .layout { grid-template-columns: minmax(0, 1.8fr) minmax(280px, 1fr); } .zero-col { grid-column: 1 / -1; } }
+  @media (max-width: 900px) { .layout { grid-template-columns: 1fr; } .zero-col { grid-column: auto; } }
 
   .card {
     background: var(--surface-1);
     border: 1px solid var(--border);
-    border-radius: 10px;
-    padding: 16px;
+    border-radius: 12px;
+    padding: 18px;
     overflow: hidden;
+    box-shadow: var(--shadow);
   }
-  .card + .card { margin-top: 16px; }
+  .card + .card { margin-top: 18px; }
   .card h2 {
-    font-size: 0.75rem;
+    font-size: 0.72rem;
+    font-weight: 650;
     text-transform: uppercase;
-    letter-spacing: 0.04em;
+    letter-spacing: 0.06em;
     color: var(--text-muted);
-    margin: 0 0 12px;
+    margin: 0 0 14px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .card h2 .hint {
+    text-transform: none;
+    letter-spacing: normal;
+    font-weight: 500;
+    color: var(--text-muted);
   }
 
-  .stat-row { display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 16px; }
+  .stat-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 18px; }
+  @media (max-width: 560px) { .stat-row { grid-template-columns: 1fr; } }
   .stat-tile {
+    position: relative;
     background: var(--surface-1);
     border: 1px solid var(--border);
-    border-radius: 10px;
-    padding: 12px 16px;
-    min-width: 140px;
+    border-radius: 12px;
+    padding: 14px 16px;
+    box-shadow: var(--shadow);
+    overflow: hidden;
   }
-  .stat-tile .label { font-size: 0.72rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em; }
-  .stat-tile .value { font-size: 1.5rem; font-weight: 600; margin-top: 2px; }
+  .stat-tile::before {
+    content: "";
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 3px;
+    background: var(--accent, var(--gridline));
+  }
+  .stat-tile.accent-iter { --accent: var(--text-muted); }
+  .stat-tile.accent-acc { --accent: var(--series-accuracy); }
+  .stat-tile.accent-model { --accent: var(--zero-highlight); }
+  .stat-tile .label { font-size: 0.68rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600; }
+  .stat-tile .value {
+    font-size: 1.65rem;
+    font-weight: 650;
+    margin-top: 4px;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.01em;
+  }
   .stat-tile .value.good { color: var(--status-good); }
 
   #chart-wrap { overflow-x: auto; }
-  svg#chart { display: block; }
+  svg#chart { display: block; width: 100%; height: auto; }
   .axis-label { fill: var(--text-muted); font-size: 10px; }
   .gridline { stroke: var(--gridline); stroke-width: 1; }
-  .baseline-line { stroke: var(--baseline); stroke-width: 1; stroke-dasharray: 4 3; }
-  .accuracy-line { fill: none; stroke: var(--series-accuracy); stroke-width: 2; }
-  .accuracy-dot { fill: var(--series-accuracy); }
-  .accuracy-label { fill: var(--text-secondary); font-size: 11px; font-variant-numeric: tabular-nums; }
-  .benchmark-label { fill: var(--text-muted); font-size: 10px; }
+  .baseline-line { stroke: var(--baseline); stroke-width: 1.25; stroke-dasharray: 4 3; }
+  .accuracy-area { fill: url(#accuracyGradient); stroke: none; }
+  .accuracy-line { fill: none; stroke: var(--series-accuracy); stroke-width: 2.5; stroke-linejoin: round; stroke-linecap: round; }
+  .accuracy-dot { fill: var(--surface-1); stroke: var(--series-accuracy); stroke-width: 2.5; }
+  .accuracy-dot.hit { fill: var(--status-good); stroke: var(--status-good); }
+  .accuracy-label { fill: var(--text-secondary); font-size: 11px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .benchmark-label { fill: var(--text-muted); font-size: 10px; font-weight: 600; }
 
-  ul.log { list-style: none; margin: 0; padding: 0; max-height: 360px; overflow-y: auto; }
+  .legend { display: flex; gap: 16px; margin-top: 10px; font-size: 0.72rem; color: var(--text-muted); }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .legend .swatch { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+
+  ul.log { list-style: none; margin: 0; padding: 0; max-height: 480px; overflow-y: auto; }
   ul.log li {
-    padding: 8px 0;
+    position: relative;
+    padding: 10px 0 10px 16px;
     border-bottom: 1px solid var(--gridline);
     font-size: 0.82rem;
-    line-height: 1.4;
+    line-height: 1.5;
+  }
+  ul.log li::before {
+    content: "";
+    position: absolute;
+    left: 0; top: 15px;
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--text-muted);
   }
   ul.log li:last-child { border-bottom: none; }
   .phase-badge {
     display: inline-block;
-    font-size: 0.65rem;
+    font-size: 0.62rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    padding: 2px 7px;
+    border-radius: 5px;
+    margin-right: 6px;
+    color: var(--text-secondary);
+    background: var(--surface-2);
+  }
+  .phase-badge.GATE { background: var(--status-good-soft); color: var(--status-good); }
+  .phase-badge.CORRECT { background: var(--zero-highlight-soft); color: var(--zero-highlight); }
+  .phase-badge.DONE { background: var(--status-good-soft); color: var(--status-good); }
+
+  .zero-col { align-self: start; position: sticky; top: 20px; }
+  .zero-col h2 { position: relative; }
+  .live-dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: var(--text-muted);
+    display: inline-block;
+    flex-shrink: 0;
+  }
+  .live-dot.active {
+    background: var(--zero-highlight);
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--zero-highlight) 55%, transparent);
+    animation: live-pulse 1.6s ease-out infinite;
+  }
+  @keyframes live-pulse {
+    0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--zero-highlight) 45%, transparent); }
+    70% { box-shadow: 0 0 0 7px color-mix(in srgb, var(--zero-highlight) 0%, transparent); }
+    100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--zero-highlight) 0%, transparent); }
+  }
+
+  ul.zero-activity { list-style: none; margin: 0; padding: 0; max-height: 640px; overflow-y: auto; }
+  ul.zero-activity li {
+    position: relative;
+    padding: 10px 0 10px 16px;
+    border-bottom: 1px solid var(--gridline);
+    font-size: 0.82rem;
+    line-height: 1.5;
+    animation: zero-item-in 0.2s ease;
+  }
+  @keyframes zero-item-in {
+    from { opacity: 0; transform: translateX(-4px); }
+    to { opacity: 1; transform: translateX(0); }
+  }
+  ul.zero-activity li::before {
+    content: "";
+    position: absolute;
+    left: 0; top: 15px;
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--zero-highlight);
+  }
+  ul.zero-activity li.muted::before { background: var(--text-muted); }
+  ul.zero-activity li:last-child { border-bottom: none; }
+  ul.zero-activity li.muted { color: var(--text-muted); font-style: italic; }
+  ul.zero-activity .zero-tag {
+    display: inline-block;
+    font-size: 0.62rem;
+    font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.03em;
-    padding: 1px 6px;
-    border-radius: 4px;
+    padding: 2px 7px;
+    border-radius: 5px;
     margin-right: 6px;
-    color: var(--text-primary);
-    background: var(--gridline);
+    background: var(--zero-highlight-soft);
+    color: var(--zero-highlight);
   }
-  .phase-badge.GATE { background: color-mix(in srgb, var(--status-good) 20%, transparent); color: var(--status-good); }
-  .phase-badge.CORRECT { background: color-mix(in srgb, var(--zero-highlight) 25%, transparent); }
-  .phase-badge.DONE { background: color-mix(in srgb, var(--status-good) 25%, transparent); color: var(--status-good); }
-
-  .zero-callout {
-    display: none;
-    border: 1px solid var(--zero-highlight);
-    background: color-mix(in srgb, var(--zero-highlight) 12%, var(--surface-1));
-    border-radius: 10px;
-    padding: 14px 16px;
-    margin-bottom: 16px;
-    font-size: 0.9rem;
-  }
-  .zero-callout.show { display: block; }
-  .zero-callout strong { color: var(--zero-highlight); }
-  .zero-callout.not-merged {
-    border-color: var(--status-warning);
-    background: color-mix(in srgb, var(--status-warning) 14%, var(--surface-1));
-  }
-  .zero-callout.not-merged strong { color: var(--status-warning); }
+  ul.zero-activity .zero-tag.tag-search { background: var(--series-accuracy-soft); color: var(--series-accuracy); }
+  ul.zero-activity .zero-tag.tag-blocked { background: color-mix(in srgb, var(--status-critical) 18%, transparent); color: var(--status-critical); }
+  ul.zero-activity .zero-amount { font-variant-numeric: tabular-nums; color: var(--text-primary); font-weight: 650; }
+  ul.zero-activity .zero-time { float: right; color: var(--text-muted); font-size: 0.68rem; font-variant-numeric: tabular-nums; }
 
   .sources { display: flex; gap: 6px; flex-wrap: wrap; }
   .source-chip {
-    background: var(--gridline);
+    background: var(--surface-2);
+    border: 1px solid var(--border);
     color: var(--text-secondary);
-    font-size: 0.72rem;
-    padding: 3px 8px;
+    font-size: 0.74rem;
+    font-weight: 550;
+    padding: 4px 10px;
     border-radius: 999px;
   }
-
-  button#start-btn, button#start-real-btn {
-    background: var(--series-accuracy);
-    color: white;
-    border: none;
-    border-radius: 8px;
-    padding: 8px 16px;
-    font-size: 0.85rem;
-    cursor: pointer;
-    margin-bottom: 16px;
-    margin-right: 8px;
+  .sources:empty::after {
+    content: "no sources pulled yet";
+    color: var(--text-muted);
+    font-size: 0.78rem;
+    font-style: italic;
   }
-  button#start-real-btn { background: var(--zero-highlight); }
-  button#start-btn:disabled, button#start-real-btn:disabled { opacity: 0.5; cursor: default; }
 </style>
 </head>
 <body>
-  <h1>Self-Correcting Heart Disease Classifier</h1>
-  <p class="subtitle">Live loop iteration history — target: beat 83.3% published SVM benchmark</p>
-  <button id="start-btn">Start loop (stub)</button>
-  <button id="start-real-btn">Run real loop</button>
-
-  <div class="zero-callout" id="zero-callout">
-    <strong>Zero.xyz discovery moment:</strong>
-    <span id="zero-callout-text">native UCI sources exhausted — agent is searching Zero's marketplace live, unplanned.</span>
+  <div class="topbar">
+    <div class="titleblock">
+      <h1>Self-Correcting Heart Disease Classifier</h1>
+      <p class="subtitle">Live loop iteration history — target: beat <span class="target">83.3%</span> published SVM benchmark</p>
+    </div>
   </div>
+
+  <form class="query-bar" id="query-form">
+    <input
+      type="text"
+      id="query-input"
+      placeholder="e.g. predict heart disease from clinical patient data…"
+      autocomplete="off"
+    />
+    <button type="submit" id="query-submit">Run</button>
+    <button type="button" id="start-btn">Stub demo</button>
+  </form>
+  <p class="query-note" id="query-note"></p>
 
   <div class="layout">
     <div>
       <div class="stat-row">
-        <div class="stat-tile"><div class="label">Iteration</div><div class="value" id="stat-iteration">0</div></div>
-        <div class="stat-tile"><div class="label">Accuracy</div><div class="value" id="stat-accuracy">—</div></div>
-        <div class="stat-tile"><div class="label">Model</div><div class="value" id="stat-model" style="font-size:0.95rem;">—</div></div>
+        <div class="stat-tile accent-iter"><div class="label">Iteration</div><div class="value" id="stat-iteration">0</div></div>
+        <div class="stat-tile accent-acc"><div class="label">Accuracy</div><div class="value" id="stat-accuracy">—</div></div>
+        <div class="stat-tile accent-model"><div class="label">Model</div><div class="value" id="stat-model" style="font-size:1.05rem;">—</div></div>
       </div>
 
       <div class="card">
-        <h2>Accuracy vs. benchmark (83.3%)</h2>
+        <h2>Accuracy vs. benchmark <span class="hint">83.3%</span></h2>
         <div id="chart-wrap">
-          <svg id="chart" width="640" height="220" viewBox="0 0 640 220"></svg>
+          <svg id="chart" width="640" height="220" viewBox="0 0 640 220" preserveAspectRatio="xMidYMid meet"></svg>
+        </div>
+        <div class="legend">
+          <span><span class="swatch" style="background:var(--series-accuracy)"></span>accuracy</span>
+          <span><span class="swatch" style="background:var(--baseline)"></span>benchmark</span>
+          <span><span class="swatch" style="background:var(--status-good)"></span>beat benchmark</span>
         </div>
       </div>
 
@@ -209,8 +406,15 @@
     </div>
 
     <div class="card">
-      <h2>Iteration log (loop + Pomerium gate)</h2>
+      <h2>Iteration log <span class="hint">loop + Pomerium gate</span></h2>
       <ul class="log" id="log"></ul>
+    </div>
+
+    <div class="card zero-col">
+      <h2>Zero.xyz activity <span class="live-dot" id="zero-live-dot"></span></h2>
+      <ul class="zero-activity" id="zero-activity">
+        <li class="muted">No Zero.xyz calls yet this run.</li>
+      </ul>
     </div>
   </div>
 
@@ -219,10 +423,12 @@ const BENCHMARK = 0.833;
 const chart = document.getElementById('chart');
 const log = document.getElementById('log');
 const sourcesEl = document.getElementById('sources');
-const zeroCallout = document.getElementById('zero-callout');
-const zeroCalloutText = document.getElementById('zero-callout-text');
+const zeroActivityEl = document.getElementById('zero-activity');
 const startBtn = document.getElementById('start-btn');
-const startRealBtn = document.getElementById('start-real-btn');
+const queryForm = document.getElementById('query-form');
+const queryInput = document.getElementById('query-input');
+const querySubmitBtn = document.getElementById('query-submit');
+const queryNote = document.getElementById('query-note');
 
 let points = []; // {iteration, accuracy}
 let es = null;
@@ -264,14 +470,76 @@ function renderLog(ev) {
   log.prepend(li);
 }
 
+const zeroLiveDot = document.getElementById('zero-live-dot');
+let zeroLiveDotTimer = null;
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+function pulseZeroLiveDot() {
+  zeroLiveDot.classList.add('active');
+  clearTimeout(zeroLiveDotTimer);
+  zeroLiveDotTimer = setTimeout(() => zeroLiveDot.classList.remove('active'), 4000);
+}
+
+function appendZeroActivity(html, tagClass) {
+  const placeholder = zeroActivityEl.querySelector('li.muted');
+  if (placeholder) placeholder.remove();
+  const li = document.createElement('li');
+  const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  li.innerHTML = `<span class="zero-time">${time}</span>${html}`;
+  zeroActivityEl.prepend(li);
+  pulseZeroLiveDot();
+}
+
+function renderZeroActivity(ev) {
+  // Pre-flight Pomerium gate check on the zero_discover action, before any
+  // marketplace call happens -- this is the agent asking permission to look.
+  if (ev.action && ev.action.type === 'zero_enrichment') {
+    const allowed = ev.action.gate_allowed !== false;
+    const tag = allowed ? `<span class="zero-tag tag-search">gate</span>` : `<span class="zero-tag tag-blocked">gate denied</span>`;
+    appendZeroActivity(`${tag}Pomerium ${allowed ? 'cleared' : 'denied'} the Zero.xyz discovery request${ev.action.gate_note ? ': ' + escapeHtml(ev.action.gate_note) : ''}.`);
+  } else if (ev.action && ev.action.type === 'zero_step') {
+    // Every real step inside the live discover/select/pay sequence --
+    // search results, ranking, self-heal retries, the actual x402 payment
+    // -- each surfaced individually instead of collapsed into one line.
+    appendZeroActivity(`<span class="zero-tag tag-search">live</span>${escapeHtml(ev.message)}`);
+  } else if (ev.action && ev.action.type === 'zero_enrich') {
+    // The real, paid marketplace selection -- the "best use of Zero" moment.
+    const merged = ev.action.merged === true;
+    const outcome = merged
+      ? 'Merged into the training dataset.'
+      : `Evaluated the real response against the training schema and determined it wasn't a fit${ev.action.merge_note ? ' (' + escapeHtml(ev.action.merge_note) + ')' : ''} — a real judgment call, not scripted.`;
+    appendZeroActivity(
+      `<span class="zero-tag">purchased</span>Selected <strong>"${escapeHtml(ev.action.service)}"</strong> from Zero's marketplace — paid ` +
+      `<span class="zero-amount">$${ev.action.price_usd.toFixed(2)}</span> via x402, live. ${outcome}`
+    );
+  } else if (ev.message && ev.message.toLowerCase().includes('zero.xyz enrichment blocked')) {
+    appendZeroActivity(`<span class="zero-tag tag-blocked">blocked</span>${escapeHtml(ev.message)}`);
+  } else if (ev.message && /searching zero/i.test(ev.message)) {
+    appendZeroActivity(`<span class="zero-tag tag-search">search</span>Searching Zero.xyz marketplace live for enrichment services…`);
+  } else if (ev.message && /zero\.xyz/i.test(ev.message)) {
+    // Catch-all so no Zero-related event goes unshown, even ones we
+    // didn't anticipate the exact shape of.
+    appendZeroActivity(`<span class="zero-tag tag-search">info</span>${escapeHtml(ev.message)}`);
+  }
+}
+
 function renderChart() {
   const w = 640, h = 220, padL = 40, padR = 16, padT = 16, padB = 24;
   const plotW = w - padL - padR, plotH = h - padT - padB;
   const maxX = Math.max(points.length - 1, 1);
   const x = i => padL + (i / maxX) * plotW;
-  const y = v => padT + (1 - v) * plotH;
+  const y = v => padT + (1 - Math.min(v, 1)) * plotH;
 
-  let svg = '';
+  let svg = `<defs>
+    <linearGradient id="accuracyGradient" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="var(--series-accuracy)" stop-opacity="0.28" />
+      <stop offset="100%" stop-color="var(--series-accuracy)" stop-opacity="0" />
+    </linearGradient>
+  </defs>`;
+
   // gridlines at 0, 0.5, 1.0
   for (const gy of [0, 0.5, 1.0]) {
     svg += `<line class="gridline" x1="${padL}" y1="${y(gy)}" x2="${w - padR}" y2="${y(gy)}" />`;
@@ -279,15 +547,18 @@ function renderChart() {
   }
   // benchmark baseline
   svg += `<line class="baseline-line" x1="${padL}" y1="${y(BENCHMARK)}" x2="${w - padR}" y2="${y(BENCHMARK)}" />`;
-  svg += `<text class="benchmark-label" x="${w - padR - 90}" y="${y(BENCHMARK) - 4}">benchmark 83.3%</text>`;
+  svg += `<text class="benchmark-label" x="${w - padR - 92}" y="${y(BENCHMARK) - 5}">benchmark 83.3%</text>`;
 
   if (points.length > 1) {
-    const path = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${x(i)} ${y(p.accuracy)}`).join(' ');
-    svg += `<path class="accuracy-line" d="${path}" />`;
+    const linePath = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${x(i)} ${y(p.accuracy)}`).join(' ');
+    const areaPath = `${linePath} L ${x(points.length - 1)} ${y(0)} L ${x(0)} ${y(0)} Z`;
+    svg += `<path class="accuracy-area" d="${areaPath}" />`;
+    svg += `<path class="accuracy-line" d="${linePath}" />`;
   }
   points.forEach((p, i) => {
-    svg += `<circle class="accuracy-dot" cx="${x(i)}" cy="${y(p.accuracy)}" r="4" />`;
-    svg += `<text class="accuracy-label" x="${x(i)}" y="${y(p.accuracy) - 10}" text-anchor="middle">${fmtPct(p.accuracy)}</text>`;
+    const hit = p.accuracy >= BENCHMARK ? ' hit' : '';
+    svg += `<circle class="accuracy-dot${hit}" cx="${x(i)}" cy="${y(p.accuracy)}" r="4.5" />`;
+    svg += `<text class="accuracy-label" x="${x(i)}" y="${y(p.accuracy) - 12}" text-anchor="middle">${fmtPct(p.accuracy)}</text>`;
   });
 
   chart.innerHTML = svg;
@@ -297,55 +568,78 @@ function handleEvent(ev) {
   renderStats(ev);
   renderSources(ev);
   renderLog(ev);
+  renderZeroActivity(ev);
 
   if (ev.accuracy != null) {
     points.push({ iteration: ev.iteration, accuracy: ev.accuracy });
     renderChart();
   }
 
-  if (ev.phase === 'GATE' && ev.action && ev.action.type === 'zero_enrich') {
-    const merged = ev.action.merged === true;
-    const outcome = merged
-      ? `merged into training data.`
-      : `NOT merged into training — ${ev.action.merge_note || 'real capability data does not match the training schema'}.`;
-    zeroCalloutText.textContent = `selected "${ev.action.service}" for $${ev.action.price_usd.toFixed(2)} — discovered live, not pre-configured. ${outcome}`;
-    zeroCallout.classList.toggle('not-merged', !merged);
-    zeroCallout.classList.add('show');
-  }
   if (ev.phase === 'DONE') {
     startBtn.disabled = false;
-    startRealBtn.disabled = false;
-    startBtn.textContent = 'Start loop (stub)';
-    startRealBtn.textContent = 'Run real loop';
+    querySubmitBtn.disabled = false;
+    queryInput.disabled = false;
+    startBtn.textContent = 'Stub demo';
+    querySubmitBtn.textContent = 'Run';
   }
 }
 
-function startLoop(endpoint) {
+function resetRunUI() {
   points = [];
   maxIterationSeen = 0;
   log.innerHTML = '';
   sourcesEl.innerHTML = '';
-  zeroCallout.classList.remove('show');
+  zeroActivityEl.innerHTML = '<li class="muted">No Zero.xyz calls yet this run.</li>';
   renderChart();
-  startBtn.disabled = true;
-  startRealBtn.disabled = true;
-  const runningBtn = endpoint === '/events/real' ? startRealBtn : startBtn;
-  runningBtn.textContent = 'Running…';
+}
+
+function setRunning(isRunning) {
+  startBtn.disabled = isRunning;
+  querySubmitBtn.disabled = isRunning;
+  queryInput.disabled = isRunning;
+  startBtn.textContent = isRunning ? 'Running…' : 'Stub demo';
+}
+
+function startLoop(endpoint) {
+  resetRunUI();
+  setRunning(true);
 
   if (es) es.close();
   es = new EventSource(endpoint);
   es.onmessage = (msg) => handleEvent(JSON.parse(msg.data));
   es.onerror = () => {
     es.close();
-    startBtn.disabled = false;
-    startRealBtn.disabled = false;
-    startBtn.textContent = 'Start loop (stub)';
-    startRealBtn.textContent = 'Run real loop';
+    setRunning(false);
   };
 }
 
 startBtn.addEventListener('click', () => startLoop('/events'));
-startRealBtn.addEventListener('click', () => startLoop('/events/real'));
+
+queryForm.addEventListener('submit', (e) => {
+  e.preventDefault();
+  const query = queryInput.value.trim();
+  if (!query) {
+    queryNote.textContent = 'Type a query first.';
+    return;
+  }
+  // The backend still only runs the fixed heart-disease/UCI pipeline --
+  // your query is shown in the log so the run feels connected to what you
+  // typed, but it doesn't yet select a different dataset or model.
+  queryNote.textContent = '';
+  resetRunUI();
+  setRunning(true);
+  querySubmitBtn.textContent = 'Running…';
+
+  if (es) es.close();
+  es = new EventSource(`/events/real?query=${encodeURIComponent(query)}`);
+  es.onmessage = (msg) => handleEvent(JSON.parse(msg.data));
+  es.onerror = () => {
+    es.close();
+    setRunning(false);
+    querySubmitBtn.textContent = 'Run';
+  };
+});
+
 renderChart();
 </script>
 </body>
