@@ -257,26 +257,6 @@ def call_llm_provider(system_prompt: str, task_context: dict) -> dict:
     return parsed
 
 
-def get_enrichment_data(context: dict) -> "pd.DataFrame | None":
-    """Fetch external enrichment records for an ENRICH_EXTERNALLY verdict.
-
-    Stub — always returns None. Replace this body with a Zero.xyz CLI
-    subprocess call when the integration is ready. The loop handles None
-    gracefully: it logs the best result achieved and exits cleanly rather
-    than assuming enrichment always succeeds.
-
-    Parameters
-    ----------
-    context : dict
-        Serialisable loop state at the moment enrichment is needed.
-
-    Returns
-    -------
-    pd.DataFrame with canonical UCI columns, or None on failure / stub.
-    """
-    return None
-
-
 # ---------------------------------------------------------------------------
 # Gray-area system prompt  (module-level — stable across calls, not per-iter)
 # ---------------------------------------------------------------------------
