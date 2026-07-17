@@ -116,3 +116,24 @@ A runnable script or small app that, unattended:
 ## Presentation notes (for whoever is driving the demo)
 
 3 minutes is not long. Rehearse the exact sequence: state the benchmark being beaten, kick off the loop, narrate the correction moment (especially the Zero discovery moment — make sure this is the visual/narrative highlight), show the final accuracy vs. benchmark comparison. Don't explain the architecture in prose during the demo — show it happening.
+
+## Division of work (2-person team)
+
+Split by ML/infra depth vs. integration/demo strength, not by sponsor count. Each person should have fully-ownable pieces, not thin slices of everything.
+
+**Person A — the core loop (ML/infra-heavy)**
+- UCI API incremental pull logic (start with Cleveland, expand to other hospital sources on demand)
+- Nexla integration: schema normalization + merging each new data source in
+- Model training/eval harness (model classes, swapping logic)
+- The diagnosis logic — the most important piece technically; this is what makes "Idea" and "Technical Implementation" scores real rather than theater
+- Tuning the deliberately-weak starting point so the loop reliably fires correctly in the demo
+
+**Person B — two sponsor integrations + everything demo-facing**
+- Pomerium integration: action allowlist / spend ceiling, gate check in front of every autonomous action. API/config work, fully ownable on its own.
+- Zero.xyz integration: marketplace search/discovery call and payment flow. Also primarily integration work, and benefits from a product/design eye on how to narrate that moment well since it's the "best use of Zero" bid.
+- Live demo dashboard: shows the loop's iteration history in real time (which data source was pulled, which model, accuracy climbing, the Zero moment highlighted).
+- Demo script and rehearsal ownership, since Presentation is 20% of the score and the window is unforgiving.
+
+**Shared / do together, don't split**
+- Wiring Person A's loop output into Person B's Pomerium gate and Zero call — this seam is where bugs hide, so do it as a joint session once both halves work standalone, not asynchronously.
+- At least one full rehearsal run-through together — Person A needs to be able to explain the diagnosis logic if a judge asks, and Person B needs to know the loop's real behavior (not just the happy path) to narrate it accurately.
