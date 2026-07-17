@@ -60,3 +60,13 @@ routes:
           or:
             - http_path:
                 is: /actions/model_switch
+
+  - from: http://gate.localhost.pomerium.io
+    to: http://host.docker.internal:9100
+    prefix: /actions/nexla_transform
+    allow_public_unauthenticated_access: true
+    policy:
+      - allow:
+          or:
+            - http_path:
+                is: /actions/nexla_transform

@@ -48,6 +48,10 @@ class ModelSwitchRequest(BaseModel):
     reason: str
 
 
+class NexlaTransformRequest(BaseModel):
+    spec: dict
+
+
 @app.post("/actions/pull_data")
 async def pull_data(req: PullDataRequest):
     decision = _gate.check(Action(type="pull_data", cost_usd=0.0, detail={"source": req.source}))
@@ -77,6 +81,15 @@ async def model_switch(req: ModelSwitchRequest):
         raise HTTPException(status_code=403, detail=decision.reason)
     logger.info("model_switch executed: reason=%s", req.reason)
     return {"allowed": True}
+
+
+@app.post("/actions/nexla_transform")
+async def nexla_transform(req: NexlaTransformRequest):
+    decision = _gate.check(Action(type="nexla_transform", cost_usd=0.0, detail={"spec": req.spec}))
+    if not decision.allowed:
+        raise HTTPException(status_code=403, detail=decision.reason)
+    logger.info("nexla_transform executed: spec=%s", req.spec)
+    return {"allowed": True, "spec": req.spec}
 
 
 def _listing_dict(listing) -> dict:
