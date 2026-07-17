@@ -15,8 +15,8 @@ It also exposes two integration seams for Person B:
 Public entry points
 -------------------
 run(
-    target_accuracy: float = 0.833,
-    max_iterations: int = 6,
+    target_accuracy: float = 0.87,
+    max_iterations: int = 12,
     on_action: Callable[[str, dict], None] | None = None,
     zero_enrichment_hook: Callable[[LoopState], pd.DataFrame | None] | None = None,
 ) -> LoopState
@@ -29,12 +29,13 @@ run(
               first iteration). Then train the current model.
       3. OBSERVE: evaluate via harness, print iteration log.
       4. CORRECT: call diagnose(). Based on verdict:
-            CONVERGED      → break
-            NEED_MORE_DATA → fetch next UCI source (fires on_action)
-            NEED_TRANSFORM → request Nexla transform (fires on_action)
-            NEED_MODEL_SWITCH → swap model (fires on_action); if all
-                                UCI sources exhausted, first call
-                                zero_enrichment_hook before switching
+            CONVERGED         → break
+            PULL_MORE_DATA    → fetch next UCI source (fires on_action)
+            TRANSFORM_DATA    → request Nexla transform (fires on_action)
+            SWITCH_MODEL      → swap model (fires on_action)
+            ENRICH_EXTERNALLY → call zero_enrichment_hook; if data returned,
+                                merge it and continue loop for one more iter;
+                                if None or no hook, stop.
       5. Append IterationRecord to state.
 
     Stops early if target_accuracy is reached or max_iterations hit.
@@ -77,7 +78,6 @@ Implementation notes
 from __future__ import annotations
 
 import logging
-import sys
 from typing import Callable
 
 import pandas as pd
@@ -154,8 +154,8 @@ def _p(msg: str) -> None:
 
 
 def run(
-    target_accuracy: float = 0.833,
-    max_iterations: int = 10,
+    target_accuracy: float = 0.87,
+    max_iterations: int = 12,
     on_action: Callable[[str, dict], None] | None = None,
     zero_enrichment_hook: Callable[[LoopState], pd.DataFrame | None] | None = None,
 ) -> LoopState:
@@ -196,6 +196,8 @@ def run(
     transform_specs: list[dict] = []      # full specs — re-applied each iteration
     models_tried_local: list[str] = []    # models evaluated so far (incl. current)
     diagnosis_history: list[tuple[str, float]] = []  # (verdict, accuracy) per iter
+    enrichment_df: pd.DataFrame | None = None  # Zero.xyz data if hook returned it
+    enrichment_attempted: bool = False    # True once hook has been called; prevents re-firing
 
     # How many non-weak-baseline models exist in the pool.
     n_capable = len([m for m in registry.MODEL_POOL if m != registry.WEAK_BASELINE_NAME])
@@ -218,6 +220,12 @@ def run(
         # ACT: assemble training slice, re-apply transforms, fit model
         # -------------------------------------------------------------------
         raw_train = harness.assemble_train(pulled_sources, frozen.train_reserves)
+
+        # Merge Zero.xyz enrichment data if the hook returned it last iteration.
+        # enrichment_df is normalized by nexla_client at merge time so column
+        # schema is guaranteed to match before transforms are applied.
+        if enrichment_df is not None:
+            raw_train = nexla_client.merge(raw_train, enrichment_df)
 
         # Re-apply transforms from raw each iteration (stateless).
         # Transforms are applied consistently to both train and test so
@@ -299,25 +307,35 @@ def run(
                 current_model_name = next_name
 
         elif diag.verdict == ENRICH_EXTERNALLY:
-            if zero_enrichment_hook:
+            if enrichment_attempted:
+                # Hook was already called last time we hit this branch.
+                # Whether it returned data or None, we have nothing left
+                # to try — stop cleanly.
+                action_taken = "zero_enrichment_already_attempted — stopping"
+                should_break = True
+            elif zero_enrichment_hook:
                 if on_action:
                     on_action("zero_enrichment", {"reason": diag.reason})
-                enriched_df = zero_enrichment_hook(state)
-                if enriched_df is not None:
-                    merged = nexla_client.merge(working_train, enriched_df)
-                    state.working_df = merged
+                fetched = zero_enrichment_hook(state)
+                enrichment_attempted = True
+                if fetched is not None:
+                    # Persist for ACT in the next iteration; the loop continues
+                    # so the enriched data actually gets trained on and evaluated.
+                    enrichment_df = fetched
                     action_taken = (
-                        f"zero_enrichment_called(records_merged={len(enriched_df)})"
+                        f"zero_enrichment_called(records_merged={len(fetched)})"
                     )
                     _p(
-                        f"[iter {iteration}] Zero.xyz enrichment merged: "
-                        f"{len(enriched_df)} additional records"
+                        f"[iter {iteration}] Zero.xyz enrichment: {len(fetched)} records "
+                        f"will be included in training next iteration"
                     )
+                    # Do NOT set should_break — let the loop continue.
                 else:
                     action_taken = "zero_enrichment_called(hook_returned_none)"
+                    should_break = True
             else:
                 action_taken = "zero_enrichment_attempted(no_hook_configured)"
-            should_break = True
+                should_break = True
 
         else:
             action_taken = f"unknown verdict {diag.verdict!r} — stopping"
