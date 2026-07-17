@@ -121,7 +121,7 @@ def _make_on_iteration(event_queue: queue.Queue):
 
 
 async def run_real_loop_streaming(
-    target_accuracy: float = 0.833, max_iterations: int = 12
+    target_accuracy: float = 0.87, max_iterations: int = 12
 ) -> AsyncIterator[LoopEvent]:
     event_queue: queue.Queue = queue.Queue()
     result_holder: dict = {}
